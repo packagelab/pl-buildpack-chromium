@@ -1,0 +1,79 @@
+#!/bin/bash
+
+# fail fast
+set -o errexit
+set -o nounset
+set -o pipefail
+
+indent() {
+  sed -u 's/^/       /'
+}
+
+scriptname=$(basename $0)
+case $# in
+  2) :;;
+  *) echo "$scriptname: usage: $scriptname BUILD_DIR CACHE_DIR" >&2; exit 2;;
+esac
+
+build_dir="$1"
+cache_dir="$2"
+ccache_max_size=50G
+
+export PATH=$build_dir/depot_tools:"$PATH"
+export CCACHE_DIR=$cache_dir/ccache
+export GYP_GENERATORS=ninja
+export GYP_DEFINES='component=shared_library remove_webcore_debug_symbols=1'
+export CC='ccache gcc'
+export CXX='ccache g++'
+export CC_host="$CC"
+export CXX_host="$CXX"
+
+TARGET=${TARGET:-Release}
+
+ccache -M $ccache_max_size
+ccache -z
+
+if [ -d $cache_dir/tars ]
+then
+  echo "-----> Restoring native client tarballs from cache"
+  mkdir -p $build_dir/src/native_client/toolchain/.tars | indent
+  rsync -av $cache_dir/tars/. $build_dir/src/native_client/toolchain/.tars/. \
+  | indent
+fi
+
+echo "-----> Running gclient hooks"
+cd $build_dir >/dev/null 2>&1
+gclient runhooks | indent
+cd - >/dev/null 2>&1
+
+echo "-----> Saving native client tarballs to cache"
+mkdir -p $cache_dir/tars
+rsync -av $build_dir/src/native_client/toolchain/.tars/. $cache_dir/tars/. \
+| indent
+
+echo "-----> Running ninja"
+cd $build_dir/src >/dev/null 2>&1
+ninja -C out/$TARGET chrome | indent
+cd - >/dev/null 2>&1
+
+echo "-----> Creating chrome-linux.zip"
+chrome_files=$(python -c "
+import os
+execfile(os.path.join('$build_dir', 'src', 'chrome', 'tools', 'build', 'linux', 'FILES.cfg'))
+files = [i['filename'] for i in FILES
+         if ('arch' not in i or '64bit' in i['arch']) and
+            ('buildtype' not in i or 'dev' in i['buildtype']) and
+            os.path.exists(os.path.join('$build_dir', 'src', 'out', '$TARGET', i['filename']))]
+for f in files:
+    print f
+")
+
+mkdir -p $build_dir/chrome_staging/chrome-linux | indent
+
+cd $build_dir/src/out/$TARGET >/dev/null 2>&1
+cp -a $chrome_files $build_dir/chrome_staging/chrome-linux | indent
+cd - >/dev/null 2>&1
+
+cd $build_dir/chrome_staging >/dev/null 2>&1
+zip -yr1 $build_dir/chrome_staging/chrome-linux.zip chrome-linux | indent
+cd - >/dev/null 2>&1

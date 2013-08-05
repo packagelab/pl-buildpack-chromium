@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# fail fast
+set -o errexit
+set -o nounset
+set -o pipefail
+
+cat <<EOT
+---
+artifacts:
+   - chrome_staging/chrome-linux.zip
+EOT
