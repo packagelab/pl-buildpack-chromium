@@ -24,6 +24,7 @@ libbz2-dev
 lib32stdc++6
 libc6-dev-i386
 libcairo2-dev
+libcap-dev
 libcups2-dev
 libcurl4-gnutls-dev
 libdbus-glib-1-dev
