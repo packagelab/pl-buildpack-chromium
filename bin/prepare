@@ -31,6 +31,7 @@ packages:
   - libcurl4-gnutls-dev
   - libdbus-glib-1-dev
   - libelf-dev
+  - libexif-dev
   - libgconf2-dev
   - libgl1-mesa-dev
   - libglib2.0-dev
